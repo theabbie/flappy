@@ -216,6 +216,42 @@
       }
     }
 
+    class Sounds {
+      static sounds = {
+        die: new Audio("sounds/die.wav"),
+        hit: new Audio("sounds/hit.wav"),
+        point: new Audio("sounds/point.wav"),
+        swoosh: new Audio("sounds/swoosh.wav"),
+        wing: new Audio("sounds/wing.wav"),
+      };
+
+      static die() {
+        Sounds.sounds.die.play();
+      }
+
+      static hit() {
+        Sounds.sounds.hit.play();
+      }
+
+      static point() {
+        Sounds.sounds.point.play();
+      }
+
+      static swoosh() {
+        Sounds.sounds.swoosh.play();
+      }
+
+      static wing() {
+        Sounds.sounds.wing.play();
+      }
+
+      static load() {
+        for (const sound of Object.values(Sounds.sounds)) {
+          sound.load();
+        }
+      }
+    }
+
     class Graphics {
       static drawBird(birdpos, angle) {
         let bird = document.querySelector(`#${birdpos.id}`);
@@ -360,12 +396,15 @@
       Graphics.showScore(game.getScore());
       if (Input.space()) {
         game.jump();
+        Sounds.wing();
         Graphics.hideInstructions();
       }
       game.move(time);
       if (!game.isOver()) requestAnimationFrame((t) => animate(t, game));
       else {
         Graphics.showGameOver();
+        Sounds.hit();
+        Sounds.die();
         setTimeout(() => {
           Graphics.reset(game.getObstacles());
           Graphics.hideGameOver();
@@ -379,10 +418,12 @@
       const h = window.innerHeight;
       const game = new Flappy(w, h);
       Input.keys = {};
+      Sounds.load();
       window.addEventListener("keydown", Input.keyDown);
       window.addEventListener("keyup", Input.keyUp);
       window.addEventListener("click", () => {
         game.jump();
+        Sounds.wing();
         Graphics.hideInstructions();
       });
       Graphics.showInstructions();
