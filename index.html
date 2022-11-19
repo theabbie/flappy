@@ -37,61 +37,48 @@
         font-family: Gilroy;
         user-select: none;
       }
-      button {
-        position: fixed;
-        left: 50%;
-        transform: translateX(-50%);
-        bottom: 20px;
-        background-color: white;
-        height: 40px;
-        padding-left: 15px;
-        padding-right: 15px;
-        letter-spacing: 4px;
-        border: none;
-        border-radius: 20px;
-        outline: 2px solid white;
-        outline-offset: 2px;
-        text-shadow: black;
-        font-weight: bolder;
+      #world {
+        background: linear-gradient(to bottom, #00000c 80%, #150800 100%);
       }
-      #board {
-        cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
-      }
-      line,
-      path,
-      circle {
-        stroke-linecap: round;
-        stroke-dasharray: 1000;
-        stroke-dashoffset: 1000;
-        animation: draw 0.6s linear forwards;
-      }
-      path {
-        fill: transparent;
-      }
-      circle {
+      #bird,
+      .obstacle,
+      #gameOver {
         fill: white;
+        transform-box: fill-box;
+        transform-origin: center;
+        transition: transform 0.15s linear;
       }
-      line {
-        animation-duration: 1s;
+      .obstacle {
+        fill: url(#shine);
       }
-      text tspan {
-        fill: #fff;
-        text-anchor: middle;
-        fill: #121212;
-        stroke: white;
-        stroke-width: 1px;
+      #gameOver {
+        animation: pop 0.3s linear forwards;
       }
-      @keyframes draw {
+      @keyframes pop {
+        from {
+          transform: scale(0);
+          opacity: 0;
+        }
         to {
-          stroke-dashoffset: 0;
+          transform: scale(1);
+          opacity: 1;
         }
       }
     </style>
     <title>Flappy Bird</title>
   </head>
   <body>
-    <svg id="world"></svg>
+    <svg id="world">
+      <defs>
+        <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color: green; stop-opacity: 1" />
+          <stop
+            offset="100%"
+            style="stop-color: greenyellow; stop-opacity: 1"
+          />
+        </linearGradient>
+      </defs>
+    </svg>
   </body>
   <script>
     const world = document.querySelector("#world");
@@ -99,27 +86,41 @@
     const windowHeight = "100vh";
     world.setAttribute("width", windowWidth);
     world.setAttribute("height", windowHeight);
-    world.style.backgroundColor = "#121212";
+    const pillarHeight = window.innerHeight / 2;
 
     class position {
-      constructor(x, y) {
+      constructor(id, x, y, width, height) {
+        this.id = id;
         this.x = x;
         this.y = y;
+        this.width = width;
+        this.height = height;
       }
     }
 
     class Flappy {
       constructor(width, height) {
+        this.originFrame = null;
         this.lastFrame = null;
         this.width = width;
         this.height = height;
-        this.bird = new position(this.width / 4, this.height / 2);
+        this.bird = new position(
+          "bird",
+          this.width / 10,
+          this.height / 2,
+          Math.min(this.width / 5, 200),
+          Math.min(this.height / 5, 80)
+        );
         this.velocity = 0;
         this.jumpVelocity = -0.4;
-        this.gravity = 0.0003;
+        this.gravity = 0.0009;
+        this.obstacles = [];
+        this.jumped = false;
+        this.over = false;
       }
 
-      getAcceleration() {
+      getGravity() {
+        if (!this.jumped) return 0;
         return this.gravity;
       }
 
@@ -127,33 +128,193 @@
         return this.bird;
       }
 
+      getAngle() {
+        const ang = parseInt(this.velocity * 90);
+        if (ang < -45) return -45;
+        if (ang > 30) return 30;
+        return ang;
+      }
+
       jump() {
+        this.jumped = true;
         this.velocity = this.jumpVelocity;
+      }
+
+      hasJumped() {
+        return this.jumped;
+      }
+
+      createObstacle() {
+        let topHeight = Math.random() * this.height * 0.4;
+        let bottomHeight = this.height * 0.6 - topHeight;
+        if (Math.random() > 0.5)
+          [topHeight, bottomHeight] = [bottomHeight, topHeight];
+        this.obstacles.push(
+          new position(
+            `obs_top_${Date.now()}`,
+            this.width,
+            0,
+            this.width / 10,
+            topHeight
+          )
+        );
+        this.obstacles.push(
+          new position(
+            `obs_bottom_${Date.now()}`,
+            this.width,
+            this.height - bottomHeight,
+            this.width / 10,
+            bottomHeight
+          )
+        );
+      }
+
+      getObstacles() {
+        return this.obstacles;
+      }
+
+      isOver() {
+        return this.over;
+      }
+
+      isCollison(obstacle) {
+        let x = this.bird.x + this.bird.width / 2;
+        let y = this.bird.y + this.bird.height / 2;
+        if (
+          x > obstacle.x &&
+          x < obstacle.x + obstacle.width &&
+          y > obstacle.y &&
+          y < obstacle.y + obstacle.height
+        ) {
+          return true;
+        }
+        return false;
       }
 
       move(time) {
         let diff = 0;
         if (this.lastFrame != null) diff = time - this.lastFrame;
+        if (this.originFrame == null) this.originFrame = time;
         this.lastFrame = time;
-        this.velocity += this.getAcceleration() * diff;
+        this.velocity += this.getGravity() * diff;
         this.bird.y += this.velocity * diff;
+        this.bird.y = Math.max(10, this.bird.y);
+        this.bird.y = Math.min(this.height - 100, this.bird.y);
+        if (this.jumped) {
+          if (time - this.originFrame > 2500 || this.obstacles.length == 0) {
+            this.originFrame = time;
+            this.createObstacle();
+          }
+        }
+        for (const obstacle of this.obstacles) {
+          obstacle.x -= 0.4 * diff;
+          if (this.isCollison(obstacle)) {
+            this.over = true;
+          }
+        }
       }
     }
 
     class Graphics {
-      static drawBall(id, x, y, r) {
-        let circle = document.querySelector(`#${id}`);
-        if (!circle) {
-          circle = document.createElementNS(
+      static drawBird(birdpos, angle) {
+        let bird = document.querySelector(`#${birdpos.id}`);
+        if (!bird) {
+          bird = document.createElementNS(
             "http://www.w3.org/2000/svg",
-            "circle"
+            "image"
           );
-          circle.setAttribute("id", id);
-          world.appendChild(circle);
+          bird.setAttribute("href", "bird_alt.png");
+          bird.setAttribute("id", birdpos.id);
+          bird.setAttribute("width", birdpos.width);
+          bird.setAttribute("height", birdpos.height);
+          world.appendChild(bird);
         }
-        circle.setAttribute("cx", x);
-        circle.setAttribute("cy", y);
-        circle.setAttribute("r", r);
+        bird.setAttribute("x", birdpos.x);
+        bird.setAttribute("y", birdpos.y);
+        bird.style.transform = `rotate(${angle}deg)`;
+      }
+
+      static drawObstacles(obstacles) {
+        for (const obstaclepos of obstacles) {
+          if (obstaclepos.x < -obstaclepos.width * 1.2) continue;
+          let obstacle = document.querySelector(`#${obstaclepos.id}`);
+          if (!obstacle) {
+            obstacle = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "rect"
+            );
+            obstacle.setAttribute("id", obstaclepos.id);
+            obstacle.setAttribute("class", "obstacle");
+            obstacle.setAttribute("width", obstaclepos.width);
+            obstacle.setAttribute("height", obstaclepos.height);
+            world.appendChild(obstacle);
+          }
+          obstacle.setAttribute("x", obstaclepos.x);
+          obstacle.setAttribute("y", obstaclepos.y);
+        }
+      }
+
+      static showGameOver() {
+        let gameOver = document.querySelector("#gameOver");
+        if (!gameOver) {
+          gameOver = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "image"
+          );
+          gameOver.setAttribute("id", "gameOver");
+          world.appendChild(gameOver);
+        }
+        let gw = window.innerWidth / 4;
+        let gh = window.innerHeight / 4;
+        if (window.innerHeight > window.innerWidth) {
+          gw = window.innerWidth * 0.8;
+          gh = gw * 0.5;
+        }
+        gameOver.setAttribute("href", "game_over.png");
+        gameOver.setAttribute("width", gw);
+        gameOver.setAttribute("height", gh);
+        gameOver.setAttribute("x", window.innerWidth / 2 - gw / 2);
+        gameOver.setAttribute("y", window.innerHeight / 2 - gh / 2);
+      }
+
+      static showInstructions() {
+        let instructions = document.querySelector("#instructions");
+        if (!instructions) {
+          instructions = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "image"
+          );
+          instructions.setAttribute("id", "instructions");
+          world.appendChild(instructions);
+        }
+        let gw = window.innerWidth / 4;
+        let gh = window.innerHeight / 4;
+        if (window.innerHeight > window.innerWidth) {
+          gw = window.innerWidth * 0.8;
+          gh = gw * 0.5;
+        }
+        instructions.setAttribute("href", "instructions.png");
+        instructions.setAttribute("width", gw);
+        instructions.setAttribute("height", gh);
+        instructions.setAttribute("x", window.innerWidth / 2 - gw / 2);
+        instructions.setAttribute("y", window.innerHeight / 2 - gh / 2);
+      }
+
+      static hideGameOver() {
+        let gameOver = document.querySelector("#gameOver");
+        if (gameOver) gameOver.remove();
+      }
+
+      static hideInstructions() {
+        let instructions = document.querySelector("#instructions");
+        if (instructions) instructions.remove();
+      }
+
+      static reset(obstacles) {
+        for (const obstaclepos of obstacles) {
+          let obstacle = document.querySelector(`#${obstaclepos.id}`);
+          if (obstacle) obstacle.remove();
+        }
       }
     }
 
@@ -174,11 +335,22 @@
     }
 
     function animate(time, game) {
-      const bird = game.getBird();
-      Graphics.drawBall("bird", bird.x, bird.y, 10);
-      if (Input.space()) game.jump();
+      Graphics.drawBird(game.getBird(), game.getAngle());
+      Graphics.drawObstacles(game.getObstacles());
+      if (Input.space()) {
+        game.jump();
+        Graphics.hideInstructions();
+      }
       game.move(time);
-      requestAnimationFrame((t) => animate(t, game));
+      if (!game.isOver()) requestAnimationFrame((t) => animate(t, game));
+      else {
+        Graphics.showGameOver();
+        setTimeout(() => {
+          Graphics.reset(game.getObstacles());
+          Graphics.hideGameOver();
+          initGame();
+        }, 2000);
+      }
     }
 
     function initGame() {
@@ -188,6 +360,11 @@
       Input.keys = {};
       window.addEventListener("keydown", Input.keyDown);
       window.addEventListener("keyup", Input.keyUp);
+      window.addEventListener("click", () => {
+        game.jump();
+        Graphics.hideInstructions();
+      });
+      Graphics.showInstructions();
       requestAnimationFrame((t) => animate(t, game));
     }
 
