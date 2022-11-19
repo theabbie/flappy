@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="title" content="Flappy Bird" />
+    <meta name="description" content="Flappy Bird Game" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://theabbie.github.io/flappy" />
+    <meta property="og:title" content="Flappy Bird" />
+    <meta property="og:description" content="Flappy Bird Game" />
+    <meta
+      property="og:image"
+      content="https://theabbie.github.io/blog/assets/sudoku.jpg"
+    />
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://theabbie.github.io/flappy" />
+    <meta property="twitter:title" content="Flappy Bird" />
+    <meta property="twitter:description" content="Flappy Bird Game" />
+    <meta
+      property="twitter:image"
+      content="https://theabbie.github.io/blog/assets/sudoku.jpg"
+    />
+    <style>
+      @font-face {
+        font-family: Gilroy;
+        src: url("Gilroy.otf") format("opentype");
+      }
+      body {
+        margin: 0;
+        overflow-y: hidden;
+        background-color: #121212;
+      }
+      * {
+        box-sizing: border-box;
+        font-family: Gilroy;
+        user-select: none;
+      }
+      button {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 20px;
+        background-color: white;
+        height: 40px;
+        padding-left: 15px;
+        padding-right: 15px;
+        letter-spacing: 4px;
+        border: none;
+        border-radius: 20px;
+        outline: 2px solid white;
+        outline-offset: 2px;
+        text-shadow: black;
+        font-weight: bolder;
+      }
+      #board {
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      line,
+      path,
+      circle {
+        stroke-linecap: round;
+        stroke-dasharray: 1000;
+        stroke-dashoffset: 1000;
+        animation: draw 0.6s linear forwards;
+      }
+      path {
+        fill: transparent;
+      }
+      circle {
+        fill: white;
+      }
+      line {
+        animation-duration: 1s;
+      }
+      text tspan {
+        fill: #fff;
+        text-anchor: middle;
+        fill: #121212;
+        stroke: white;
+        stroke-width: 1px;
+      }
+      @keyframes draw {
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+    </style>
+    <title>Flappy Bird</title>
+  </head>
+  <body>
+    <svg id="world"></svg>
+  </body>
+  <script>
+    const world = document.querySelector("#world");
+    const windowWidth = "100%";
+    const windowHeight = "100vh";
+    world.setAttribute("width", windowWidth);
+    world.setAttribute("height", windowHeight);
+    world.style.backgroundColor = "#121212";
+
+    class position {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+      }
+    }
+
+    class Flappy {
+      constructor(width, height) {
+        this.lastFrame = null;
+        this.width = width;
+        this.height = height;
+        this.bird = new position(this.width / 4, this.height / 2);
+        this.velocity = 0;
+        this.jumpVelocity = -0.4;
+        this.gravity = 0.0003;
+      }
+
+      getAcceleration() {
+        return this.gravity;
+      }
+
+      getBird() {
+        return this.bird;
+      }
+
+      jump() {
+        this.velocity = this.jumpVelocity;
+      }
+
+      move(time) {
+        let diff = 0;
+        if (this.lastFrame != null) diff = time - this.lastFrame;
+        this.lastFrame = time;
+        this.velocity += this.getAcceleration() * diff;
+        this.bird.y += this.velocity * diff;
+      }
+    }
+
+    class Graphics {
+      static drawBall(id, x, y, r) {
+        let circle = document.querySelector(`#${id}`);
+        if (!circle) {
+          circle = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "circle"
+          );
+          circle.setAttribute("id", id);
+          world.appendChild(circle);
+        }
+        circle.setAttribute("cx", x);
+        circle.setAttribute("cy", y);
+        circle.setAttribute("r", r);
+      }
+    }
+
+    class Input {
+      static keys = {};
+
+      static keyDown(e) {
+        Input.keys[e.key] = true;
+      }
+
+      static keyUp(e) {
+        Input.keys[e.key] = false;
+      }
+
+      static space() {
+        return Input.keys[" "];
+      }
+    }
+
+    function animate(time, game) {
+      const bird = game.getBird();
+      Graphics.drawBall("bird", bird.x, bird.y, 10);
+      if (Input.space()) game.jump();
+      game.move(time);
+      requestAnimationFrame((t) => animate(t, game));
+    }
+
+    function initGame() {
+      const w = world.clientWidth;
+      const h = window.innerHeight;
+      const game = new Flappy(w, h);
+      Input.keys = {};
+      window.addEventListener("keydown", Input.keyDown);
+      window.addEventListener("keyup", Input.keyUp);
+      requestAnimationFrame((t) => animate(t, game));
+    }
+
+    window.onload = initGame;
+  </script>
+</html>
