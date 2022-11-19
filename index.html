@@ -113,10 +113,11 @@
         );
         this.velocity = 0;
         this.jumpVelocity = -0.4;
-        this.gravity = 0.0009;
+        this.gravity = 0.002;
         this.obstacles = [];
         this.jumped = false;
         this.over = false;
+        this.score = new Set();
       }
 
       getGravity() {
@@ -144,9 +145,13 @@
         return this.jumped;
       }
 
+      getScore() {
+        return this.score.size / 2;
+      }
+
       createObstacle() {
         let topHeight = Math.random() * this.height * 0.4;
-        let bottomHeight = this.height * 0.6 - topHeight;
+        let bottomHeight = this.height * 0.7 - topHeight;
         if (Math.random() > 0.5)
           [topHeight, bottomHeight] = [bottomHeight, topHeight];
         this.obstacles.push(
@@ -180,13 +185,9 @@
       isCollison(obstacle) {
         let x = this.bird.x + this.bird.width / 2;
         let y = this.bird.y + this.bird.height / 2;
-        if (
-          x > obstacle.x &&
-          x < obstacle.x + obstacle.width &&
-          y > obstacle.y &&
-          y < obstacle.y + obstacle.height
-        ) {
-          return true;
+        if (x > obstacle.x && x < obstacle.x + obstacle.width) {
+          this.score.add(obstacle.id);
+          if (y > obstacle.y && y < obstacle.y + obstacle.height) return true;
         }
         return false;
       }
@@ -207,7 +208,7 @@
           }
         }
         for (const obstacle of this.obstacles) {
-          obstacle.x -= 0.4 * diff;
+          obstacle.x -= 0.3 * diff;
           if (this.isCollison(obstacle)) {
             this.over = true;
           }
@@ -252,6 +253,25 @@
           obstacle.setAttribute("x", obstaclepos.x);
           obstacle.setAttribute("y", obstaclepos.y);
         }
+      }
+
+      static showScore(scoreValue) {
+        let score = document.querySelector("#score");
+        if (!score) {
+          score = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+          );
+          score.setAttribute("id", "score");
+          score.setAttribute("x", "50%");
+          score.setAttribute("y", "10%");
+          score.setAttribute("text-anchor", "middle");
+          score.setAttribute("font-size", "50px");
+          score.setAttribute("font-family", "sans-serif");
+          score.setAttribute("fill", "white");
+          world.appendChild(score);
+        }
+        score.textContent = scoreValue;
       }
 
       static showGameOver() {
@@ -337,6 +357,7 @@
     function animate(time, game) {
       Graphics.drawBird(game.getBird(), game.getAngle());
       Graphics.drawObstacles(game.getObstacles());
+      Graphics.showScore(game.getScore());
       if (Input.space()) {
         game.jump();
         Graphics.hideInstructions();
