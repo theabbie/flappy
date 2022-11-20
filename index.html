@@ -86,7 +86,6 @@
     const windowHeight = "100vh";
     world.setAttribute("width", windowWidth);
     world.setAttribute("height", windowHeight);
-    const pillarHeight = window.innerHeight / 2;
 
     class position {
       constructor(id, x, y, width, height) {
@@ -102,8 +101,10 @@
       constructor(width, height) {
         this.originFrame = null;
         this.lastFrame = null;
+        this.overFrame = 0;
         this.width = width;
         this.height = height;
+        this.ratio = Math.min(width / height, 1);
         this.bird = new position(
           "bird",
           this.width / 10,
@@ -129,6 +130,10 @@
         return this.bird;
       }
 
+      getOverFrame() {
+        return this.overFrame;
+      }
+
       getAngle() {
         const ang = parseInt(this.velocity * 90);
         if (ang < -45) return -45;
@@ -146,17 +151,18 @@
       }
 
       getScore() {
-        return this.score.size / 2;
+        return this.score.size;
       }
 
       createObstacle() {
+        const obstacleId = Date.now();
         let topHeight = Math.random() * this.height * 0.4;
         let bottomHeight = this.height * 0.7 - topHeight;
         if (Math.random() > 0.5)
           [topHeight, bottomHeight] = [bottomHeight, topHeight];
         this.obstacles.push(
           new position(
-            `obs_top_${Date.now()}`,
+            `obs_top_${obstacleId}`,
             this.width,
             0,
             this.width / 10,
@@ -165,7 +171,7 @@
         );
         this.obstacles.push(
           new position(
-            `obs_bottom_${Date.now()}`,
+            `obs_bottom_${obstacleId}`,
             this.width,
             this.height - bottomHeight,
             this.width / 10,
@@ -182,12 +188,22 @@
         return this.over;
       }
 
+      isXCollision(obstacle, x, y) {
+        return x > obstacle.x && x < obstacle.x + obstacle.width;
+      }
+
+      isYCollision(obstacle, x, y) {
+        return y > obstacle.y && y < obstacle.y + obstacle.height;
+      }
+
       isCollison(obstacle) {
         let x = this.bird.x + this.bird.width / 2;
         let y = this.bird.y + this.bird.height / 2;
-        if (x > obstacle.x && x < obstacle.x + obstacle.width) {
-          this.score.add(obstacle.id);
-          if (y > obstacle.y && y < obstacle.y + obstacle.height) return true;
+        const isxcol = this.isXCollision(obstacle, x, y);
+        const isycol = this.isYCollision(obstacle, x, y);
+        if (isxcol) {
+          if (!isycol) this.score.add(obstacle.id.split("_")[2]);
+          if (isycol) return true;
         }
         return false;
       }
@@ -202,15 +218,21 @@
         this.bird.y = Math.max(10, this.bird.y);
         this.bird.y = Math.min(this.height - 100, this.bird.y);
         if (this.jumped) {
-          if (time - this.originFrame > 2500 || this.obstacles.length == 0) {
+          if (
+            time - this.originFrame > 2500 * this.ratio ||
+            this.obstacles.length == 0
+          ) {
             this.originFrame = time;
             this.createObstacle();
           }
         }
         for (const obstacle of this.obstacles) {
-          obstacle.x -= 0.3 * diff;
-          if (this.isCollison(obstacle)) {
-            this.over = true;
+          if (!this.over) {
+            obstacle.x -= 0.3 * diff;
+            if (this.isCollison(obstacle)) {
+              this.over = true;
+              this.overFrame = time;
+            }
           }
         }
       }
@@ -247,7 +269,7 @@
 
       static load() {
         for (const sound of Object.values(Sounds.sounds)) {
-          sound.load();
+          if (sound.readyState == 0) sound.load();
         }
       }
     }
@@ -260,7 +282,7 @@
             "http://www.w3.org/2000/svg",
             "image"
           );
-          bird.setAttribute("href", "bird_alt.png");
+          bird.setAttribute("href", "bird.png");
           bird.setAttribute("id", birdpos.id);
           bird.setAttribute("width", birdpos.width);
           bird.setAttribute("height", birdpos.height);
@@ -376,6 +398,8 @@
 
     class Input {
       static keys = {};
+      static clicked = false;
+      static ctr;
 
       static keyDown(e) {
         Input.keys[e.key] = true;
@@ -385,32 +409,45 @@
         Input.keys[e.key] = false;
       }
 
-      static space() {
-        return Input.keys[" "];
+      static click(e) {
+        if (Input.clicked) return;
+        Input.clicked = true;
+        Input.ctr = setTimeout(() => {
+          Input.clicked = false;
+        }, 80);
       }
+
+      static action() {
+        return Input.keys[" "] || Input.clicked;
+      }
+    }
+
+    function jump(game) {
+      if (game.isOver()) return;
+      game.jump();
+      Sounds.wing();
+      Graphics.hideInstructions();
     }
 
     function animate(time, game) {
       Graphics.drawBird(game.getBird(), game.getAngle());
       Graphics.drawObstacles(game.getObstacles());
       Graphics.showScore(game.getScore());
-      if (Input.space()) {
-        game.jump();
-        Sounds.wing();
-        Graphics.hideInstructions();
-      }
+      if (Input.action()) jump(game);
       game.move(time);
-      if (!game.isOver()) requestAnimationFrame((t) => animate(t, game));
-      else {
+      let stop = false;
+      if (game.isOver()) {
         Graphics.showGameOver();
         Sounds.hit();
         Sounds.die();
-        setTimeout(() => {
+        if (time - game.getOverFrame() >= 2000) {
+          stop = true;
           Graphics.reset(game.getObstacles());
           Graphics.hideGameOver();
           initGame();
-        }, 2000);
+        }
       }
+      if (!stop) requestAnimationFrame((t) => animate(t, game));
     }
 
     function initGame() {
@@ -421,11 +458,7 @@
       Sounds.load();
       window.addEventListener("keydown", Input.keyDown);
       window.addEventListener("keyup", Input.keyUp);
-      window.addEventListener("click", () => {
-        game.jump();
-        Sounds.wing();
-        Graphics.hideInstructions();
-      });
+      window.addEventListener("click", Input.click);
       Graphics.showInstructions();
       requestAnimationFrame((t) => animate(t, game));
     }
